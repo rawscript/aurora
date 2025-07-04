@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Meter Vibe Wheel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <style>
+    .spin-wheel {
+      background: conic-gradient(from 0deg, #34d399 0 25%, #ecfdf5 25% 50%, #34d399 50% 75%, #ecfdf5 75% 100%);
+      border-radius: 9999px;
+      width: 160px;
+      height: 160px;
+      border: 8px solid rgba(0,0,0,0.05);
+      position: relative;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      backdrop-filter: blur(4px);
+      transition: transform 0.6s ease;
+    }
+
+    .spin-marker {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 14px;
+      height: 14px;
+      background: #34d399;
+      border: 2px solid white;
+      border-radius: 9999px;
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-white text-gray-800 min-h-screen flex items-center justify-center">
+
+  <div class="w-full max-w-xl bg-white/80 shadow-xl rounded-xl p-6 backdrop-blur-md border border-green-100">
+    <h1 class="text-2xl font-bold mb-4 text-center">🌀 Smart Meter Spin Simulator</h1>
+
+    <!-- Form -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+      <input id="user_id_input" class="px-4 py-2 rounded border focus:ring focus:ring-green-300" placeholder="User ID">
+      <input id="meter_number_input" class="px-4 py-2 rounded border focus:ring focus:ring-green-300" placeholder="Meter Number">
+      <button onclick="registerMeter()" class="bg-green-500 hover:bg-green-600 text-white rounded px-4 py-2">➕ Register</button>
+    </div>
+
+    <!-- Meter Selector -->
+    <select id="meter_select" class="w-full mb-4 px-4 py-2 border rounded">
+      <option value="">– Select Registered Meter –</option>
+    </select>
+
+    <!-- Wheel + Readout -->
+    <div class="flex flex-col items-center space-y-4">
+      <div class="relative spin-wheel" id="wheel">
+        <div class="spin-marker"></div>
+      </div>
+      <button onclick="spin()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">🔄 Spin Meter</button>
+      <p>kWh Consumed: <span class="font-mono font-bold" id="kwhDisplay">0.00</span></p>
+    </div>
+
+    <!-- Response -->
+    <div class="mt-6">
+      <h2 class="text-lg font-semibold mb-2">📥 Latest Response</h2>
+      <pre id="responseBox" class="bg-gray-100 p-3 rounded text-sm max-h-40 overflow-auto"></pre>
+    </div>
+
+    <!-- History -->
+    <div class="mt-4">
+      <h2 class="text-lg font-semibold mb-2">📚 Reading History</h2>
+      <ul id="history_log" class="text-sm space-y-1"></ul>
+    </div>
+  </div>
+
+  <script>
+    const meters = [];
+    let angle = 0;
+
+    function registerMeter() {
+      const user = document.getElementById('user_id_input').value.trim();
+      const meter = document.getElementById('meter_number_input').value.trim();
+      if (!user || !meter) return alert("Both fields are required.");
+
+      const combo = `${user}::${meter}`;
+      if (!meters.includes(combo)) {
+        meters.push(combo);
+        const opt = document.createElement("option");
+        opt.value = combo;
+        opt.textContent = meter;
+        document.getElementById("meter_select").appendChild(opt);
+        document.getElementById('user_id_input').value = "";
+        document.getElementById('meter_number_input').value = "";
+      }
+    }
+
+    function spin() {
+      const selected = document.getElementById("meter_select").value;
+      if (!selected) return alert("Select a registered meter first.");
+      const [user, meter] = selected.split("::");
+
+      const kwh = (Math.random() * 10 + 1).toFixed(2);
+      document.getElementById("kwhDisplay").textContent = kwh;
+
+      angle += 360 + Math.random() * 720;
+      document.getElementById("wheel").style.transform = `rotate(${angle}deg)`;
+
+      const payload = {
+        user_id: user,
+        meter_number: meter,
+        kwh_consumed: parseFloat(kwh),
+        timestamp: new Date().toISOString()
+      };
+
+      fetch("https://vlnqtokemorywhdavosy.supabase.co/functions/v1/smart-meter-webhook", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+           'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsbnF0b2tlbW9yeXdoZGF2b3N5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEyNzc2NDEsImV4cCI6MjA2Njg1MzY0MX0.eseSJx2EK4KctwYybk8CghVLVV0x2GNQXem3aP7bThg'
+         },
+        body: JSON.stringify(payload)
+      })
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById("responseBox").textContent = JSON.stringify(data, null, 2);
+          const li = document.createElement("li");
+          li.textContent = `${new Date().toLocaleTimeString()} — ${meter}: ${kwh} kWh`;
+          document.getElementById("history_log").prepend(li);
+        })
+        .catch(err => {
+          document.getElementById("responseBox").textContent = `❌ Error: ${err.message}`;
+        });
+    }
+  </script>
+</body>
+</html>
