@@ -1,2 +1,2 @@
 # aurora
-Smart metering webapp
+Smart metering webapp simulation meter
