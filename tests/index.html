@@ -72,62 +72,100 @@
   </div>
 
   <script>
-    const meters = [];
-    let angle = 0;
+    const meters = JSON.parse(localStorage.getItem("meters") || "[]");
+let angle = 0;
+let isSpinning = false;
 
-    function registerMeter() {
-      const user = document.getElementById('user_id_input').value.trim();
-      const meter = document.getElementById('meter_number_input').value.trim();
-      if (!user || !meter) return alert("Both fields are required.");
+window.onload = () => {
+  const select = document.getElementById("meter_select");
+  meters.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m.split("::")[1];
+    select.appendChild(opt);
+  });
+  if (!document.getElementById("history_log").hasChildNodes()) {
+    const empty = document.createElement("li");
+    empty.textContent = "No readings yet";
+    empty.className = "text-gray-500 italic";
+    document.getElementById("history_log").appendChild(empty);
+  }
+};
 
-      const combo = `${user}::${meter}`;
-      if (!meters.includes(combo)) {
-        meters.push(combo);
-        const opt = document.createElement("option");
-        opt.value = combo;
-        opt.textContent = meter;
-        document.getElementById("meter_select").appendChild(opt);
-        document.getElementById('user_id_input').value = "";
-        document.getElementById('meter_number_input').value = "";
-      }
-    }
+function showToast(msg, success = true) {
+  const toast = document.createElement("div");
+  toast.textContent = msg;
+  toast.className = `fixed top-6 left-1/2 transform -translate-x-1/2 px-4 py-2 text-sm rounded shadow ${
+    success ? "bg-green-500 text-white" : "bg-red-500 text-white"
+  }`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
 
-    function spin() {
-      const selected = document.getElementById("meter_select").value;
-      if (!selected) return alert("Select a registered meter first.");
-      const [user, meter] = selected.split("::");
+function registerMeter() {
+  const user = document.getElementById('user_id_input').value.trim();
+  const meter = document.getElementById('meter_number_input').value.trim();
+  if (!user || !meter) return showToast("Both fields are required", false);
 
-      const kwh = (Math.random() * 10 + 1).toFixed(2);
-      document.getElementById("kwhDisplay").textContent = kwh;
+  const combo = `${user}::${meter}`;
+  if (!meters.includes(combo)) {
+    meters.push(combo);
+    localStorage.setItem("meters", JSON.stringify(meters));
+    const opt = document.createElement("option");
+    opt.value = combo;
+    opt.textContent = meter;
+    document.getElementById("meter_select").appendChild(opt);
+    document.getElementById('user_id_input').value = "";
+    document.getElementById('meter_number_input').value = "";
+    showToast("Meter registered ✔️");
+  } else {
+    showToast("Meter already registered", false);
+  }
+}
 
-      angle += 360 + Math.random() * 720;
-      document.getElementById("wheel").style.transform = `rotate(${angle}deg)`;
+function spin() {
+  if (isSpinning) return;
+  const selected = document.getElementById("meter_select").value;
+  if (!selected) return showToast("Select a meter first", false);
+  isSpinning = true;
 
-      const payload = {
-        user_id: user,
-        meter_number: meter,
-        kwh_consumed: parseFloat(kwh),
-        timestamp: new Date().toISOString()
-      };
+  const [user, meter] = selected.split("::");
+  const kwh = (Math.random() * 10 + 1).toFixed(2);
+  document.getElementById("kwhDisplay").textContent = kwh;
 
-      fetch("https://rcthtxwzsqvwivritzln.supabase.co/functions/v1/super-action", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json',
-           'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdGh0eHd6c3F2d2l2cml0emxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2NzM2MjAsImV4cCI6MjA2ODI0OTYyMH0._bSOH4oY3Ug1l-NY7OPnXQr4Mt5mD7WgugNKjlwWAkM'
-         },
-        body: JSON.stringify(payload)
-      })
-        .then(r => r.json())
-        .then(data => {
-          document.getElementById("responseBox").textContent = JSON.stringify(data, null, 2);
-          const li = document.createElement("li");
-          li.textContent = `${new Date().toLocaleTimeString()} — ${meter}: ${kwh} kWh`;
-          document.getElementById("history_log").prepend(li);
-        })
-        .catch(err => {
-          document.getElementById("responseBox").textContent = `❌ Error: ${err.message}`;
-        });
-    }
+  angle += 360 + Math.random() * 720;
+  document.getElementById("wheel").style.transform = `rotate(${angle}deg)`;
+
+  const payload = {
+    user_id: user,
+    meter_number: meter,
+    kwh_consumed: parseFloat(kwh),
+    timestamp: new Date().toISOString()
+  };
+
+  fetch("https://rcthtxwzsqvwivritzln.supabase.co/functions/v1/super-action", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdGh0eHd6c3F2d2l2cml0emxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2NzM2MjAsImV4cCI6MjA2ODI0OTYyMH0._bSOH4oY3Ug1l-NY7OPnXQr4Mt5mD7WgugNKjlwWAkM' },
+    body: JSON.stringify(payload)
+  })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById("responseBox").textContent = JSON.stringify(data, null, 2);
+      const li = document.createElement("li");
+      li.textContent = `${new Date().toLocaleTimeString()} — ${meter}: ${kwh} kWh`;
+      document.getElementById("history_log").prepend(li);
+      showToast("Spin recorded ✔️");
+    })
+    .catch(err => {
+      document.getElementById("responseBox").textContent = `❌ Error: ${err.message}`;
+      showToast("Spin failed ❌", false);
+    })
+    .finally(() => {
+      isSpinning = false;
+    });
+}
+
   </script>
 </body>
 </html>
