@@ -52,6 +52,11 @@
       <p class="text-blue-800"><i class="fas fa-info-circle mr-2"></i> You can use either your original User ID or the encoded version. The system will automatically convert encoded IDs for you.</p>
     </div>
     
+    <!-- Info about proxy server -->
+    <div class="mb-4 p-3 bg-yellow-50 rounded-lg text-sm">
+      <p class="text-yellow-800"><i class="fas fa-exclamation-triangle mr-2"></i> If you're experiencing connection issues, make sure the proxy server is running. See PROXY_DEPLOYMENT.md for deployment instructions. Update the proxy URL in the code to match your deployed proxy server.</p>
+    </div>
+    
     <!-- Connection Status -->
     <div id="connectionStatus" class="mb-4 p-2 rounded text-center text-sm font-medium bg-yellow-100 text-yellow-800">
       <i class="fas fa-plug"></i> Connecting to Aurora...
@@ -112,7 +117,9 @@
     const AURORA_CONFIG = {
       supabaseUrl: 'https://rcthtxwzsqvwivritzln.supabase.co',
       supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdGh0eHd6c3F2d2l2cml0emxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2NzM2MjAsImV4cCI6MjA2ODI0OTYyMH0._bSOH4oY3Ug1l-NY7OPnXQr4Mt5mD7WgugNKjlwWAkM',
-      functionName: 'super-action'
+      functionName: 'super-action',
+      // Proxy server URL - replace with your deployed proxy server URL
+      proxyUrl: 'https://aurora-smart-meter.onrender.com/supabase-function' // Change this to your deployed proxy URL
     };
 
     const meters = JSON.parse(localStorage.getItem("aurora_meters") || "[]");
@@ -299,19 +306,25 @@
       document.getElementById("responseBox").textContent = "Sending data to Aurora...";
       
       try {
-        // Send data to Aurora
-        const response = await fetch(
-          `${AURORA_CONFIG.supabaseUrl}/functions/v1/${AURORA_CONFIG.functionName}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${AURORA_CONFIG.supabaseKey}`,
-              'apikey': AURORA_CONFIG.supabaseKey
-            },
-            body: JSON.stringify(payload)
-          }
-        );
+        // Send data to Aurora through the proxy server
+        const response = await fetch(AURORA_CONFIG.proxyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url: `${AURORA_CONFIG.supabaseUrl}/functions/v1/${AURORA_CONFIG.functionName}`,
+            user_id: originalUserId,
+            meter_number: meter,
+            kwh_consumed: parseFloat(kwh),
+            timestamp: new Date().toISOString()
+          })
+        });
+        
+        // Check if response is OK
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         
@@ -335,8 +348,15 @@
         showToast("Reading sent to Aurora ✔️");
       } catch (error) {
         console.error('Error sending data:', error);
-        document.getElementById("responseBox").textContent = `❌ Error: ${error.message}`;
-        showToast("Failed to send reading ❌", false);
+        
+        // More detailed error handling
+        if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+          document.getElementById("responseBox").textContent = `❌ Network Error: Unable to send data to proxy server. Make sure the proxy server is running.`;
+          showToast("Network Error: Check proxy server ❌", false);
+        } else {
+          document.getElementById("responseBox").textContent = `❌ Error: ${error.message}`;
+          showToast("Failed to send reading ❌", false);
+        }
       } finally {
         // Reset spinning state
         setTimeout(() => {
